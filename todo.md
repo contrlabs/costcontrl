@@ -1,8 +1,8 @@
-# CostBird MVP - Todo
+# CostContrl MVP - Todo
 
 ## Phase 1: Landing Page + Branding
-- [x] Update LandingPage.tsx with CostBird branding (amber/warm theme)
-- [x] Update header/sidebar with CostBird logo/name
+- [x] Update LandingPage.tsx with CostContrl branding (amber/warm theme)
+- [x] Update header/sidebar with CostContrl logo/name
 - [x] Polish landing page copy (PL + EN)
 
 ## Phase 2: Backend - Estimation Engine
