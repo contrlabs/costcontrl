@@ -60,6 +60,9 @@ const schema = defineSchema({
     totalPrice: v.number(),
     sourceFile: v.optional(v.string()),
     note: v.optional(v.string()),
+    confidence: v.optional(
+      v.union(v.literal("high"), v.literal("medium"), v.literal("low"))
+    ),
   }).index("by_project", ["projectId"]),
 
   // --- Change log for versioning ---

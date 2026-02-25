@@ -289,6 +289,24 @@ export const translations = {
     en: "Loading templates...",
   },
 
+  // --- Confidence scoring ---
+  "confidence.label": { pl: "Pewność", en: "Confidence" },
+  "confidence.high": { pl: "Pewna", en: "High" },
+  "confidence.medium": { pl: "Szacunkowa", en: "Estimated" },
+  "confidence.low": { pl: "Niska", en: "Low" },
+  "confidence.highTooltip": {
+    pl: "Dane z dokumentacji — ilość i cena bezpośrednio z plików",
+    en: "From documentation — quantity and price directly from files",
+  },
+  "confidence.mediumTooltip": {
+    pl: "Oszacowano z parametrów budynku i cen referencyjnych",
+    en: "Estimated from building parameters and reference prices",
+  },
+  "confidence.lowTooltip": {
+    pl: "Wymaga weryfikacji — brak danych w dokumentacji",
+    en: "Needs verification — no data in documentation",
+  },
+
   // --- GPT-4o Vision ---
   "vision.analyzing": { pl: "Analizuję rysunki...", en: "Analyzing drawings..." },
   "vision.imageFound": {

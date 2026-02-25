@@ -312,15 +312,25 @@ export const processEstimate = action({
 
       let combinedContext = "";
       if (textDocs.length > 0) {
-        combinedContext += "\n\n=== DOKUMENTACJA TEKSTOWA (opisy techniczne, specyfikacje) ===";
+        combinedContext += "
+
+=== DOKUMENTACJA TEKSTOWA (opisy techniczne, specyfikacje) ===";
         for (const { fileName, content } of textDocs) {
-          combinedContext += `\n\n--- PLIK: ${fileName} [OPIS TECHNICZNY] ---\n${content.substring(0, charsPerTextDoc)}`;
+          combinedContext += `
+
+--- PLIK: ${fileName} [OPIS TECHNICZNY] ---
+${content.substring(0, charsPerTextDoc)}`;
         }
       }
       if (drawingDocs.length > 0) {
-        combinedContext += "\n\n=== RYSUNKI / RZUTY (wyodrębniony tekst z PDF) ===";
+        combinedContext += "
+
+=== RYSUNKI / RZUTY (wyodrębniony tekst z PDF) ===";
         for (const { fileName, content } of drawingDocs) {
-          combinedContext += `\n\n--- PLIK: ${fileName} [RYSUNEK] ---\n${content.substring(0, charsPerDrawing)}`;
+          combinedContext += `
+
+--- PLIK: ${fileName} [RYSUNEK] ---
+${content.substring(0, charsPerDrawing)}`;
         }
       }
 
@@ -380,11 +390,15 @@ ZASADY:
 1. Generuj pozycje kosztorysowe TYLKO z tego co widać w tym konkretnym pliku
 2. Używaj REALISTYCZNYCH cen polskich 2025/2026 z referencji powyżej
 3. Ilości muszą odpowiadać RZECZYWISTYM wymiarom budynku
-4. Każda pozycja musi mieć: category, description, unit, quantity, unitPrice, branch
+4. Każda pozycja musi mieć: category, description, unit, quantity, unitPrice, branch, confidence
 5. branch = "ogolnobudowlana" | "sanitarna" | "elektryczna" | "zewnetrzna"
+6. confidence = "high" | "medium" | "low" — ocena pewności pozycji:
+   - "high" = ilość i cena bezpośrednio z dokumentacji (wymiary, specyfikacja materiału)
+   - "medium" = ilość oszacowana z parametrów budynku, cena z referencji
+   - "low" = brak danych w dokumencie, pozycja uzupełniona na podstawie doświadczenia
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON:
-{"items": [{"category":"...","description":"...","unit":"m²","quantity":100,"unitPrice":250,"branch":"ogolnobudowlana"}]}`;
+{"items": [{"category":"...","description":"...","unit":"m²","quantity":100,"unitPrice":250,"branch":"ogolnobudowlana","confidence":"medium"}]}`;
 
       type PartialEstimate = {
         items: Array<{
@@ -394,6 +408,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
           quantity: number;
           unitPrice: number;
           branch?: string;
+          confidence?: "high" | "medium" | "low";
         }>;
       };
 
@@ -405,6 +420,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
         unitPrice: number;
         branch: string;
         sourceFile: string;
+        confidence: "high" | "medium" | "low";
       }> = [];
 
       if (fileCount <= 3) {
@@ -416,7 +432,12 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
           try {
             const result = await gpt4o(apiKey, 
               perFileSystem,
-              `Plik: ${fileName}\n\nZawartość:\n${fileContent}\n\nWygeneruj pozycje kosztorysowe z tego pliku.`,
+              `Plik: ${fileName}
+
+Zawartość:
+${fileContent}
+
+Wygeneruj pozycje kosztorysowe z tego pliku.`,
               { jsonMode: true, temperature: 0.15, maxTokens: 4000 }
             );
             const parsed: PartialEstimate = JSON.parse(result);
@@ -424,6 +445,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
               ...item,
               branch: item.branch || "ogolnobudowlana",
               sourceFile: fileName,
+              confidence: item.confidence || "medium",
             }));
           } catch (err) {
             console.error(`Per-file analysis failed for ${fileName}:`, err);
@@ -438,7 +460,10 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
         try {
           const result = await gpt4o(apiKey, 
             perFileSystem,
-            `Dokumentacja (${fileCount} plików):\n${combinedContext.substring(0, 45000)}\n\nWygeneruj KOMPLETNY kosztorys (40-60 pozycji) obejmujący WSZYSTKIE branże widoczne w dokumentacji. Przy każdej pozycji w polu "sourceFile" podaj nazwę pliku źródłowego.`,
+            `Dokumentacja (${fileCount} plików):
+${combinedContext.substring(0, 45000)}
+
+Wygeneruj KOMPLETNY kosztorys (40-60 pozycji) obejmujący WSZYSTKIE branże widoczne w dokumentacji. Przy każdej pozycji w polu "sourceFile" podaj nazwę pliku źródłowego.`,
             { jsonMode: true, temperature: 0.15, maxTokens: 8000 }
           );
           const parsed: PartialEstimate = JSON.parse(result);
@@ -446,6 +471,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
             ...item,
             branch: item.branch || "ogolnobudowlana",
             sourceFile: (item as any).sourceFile || allTexts[0]?.fileName || "",
+            confidence: (item as any).confidence || "medium",
           }));
         } catch (err) {
           console.error("Batch analysis failed:", err);
@@ -485,12 +511,16 @@ KRYTYCZNA WALIDACJA:
 WYMAGANE minimum 30 pozycji, optymalnie 40-60.
 
 Odpowiedz WYŁĄCZNIE poprawnym JSON:
-{"items":[{"position":1,"branch":"ogolnobudowlana","category":"...","description":"...","unit":"m²","quantity":100,"unitPrice":250,"sourceFile":"..."}],"summary":{"totalNetto":0,"area":0,"costPerM2":0,"buildingType":"","notes":""},"mergeLog":["Połączono: X + Y → Z"]}`;
+{"items":[{"position":1,"branch":"ogolnobudowlana","category":"...","description":"...","unit":"m²","quantity":100,"unitPrice":250,"sourceFile":"...","confidence":"medium"}],"summary":{"totalNetto":0,"area":0,"costPerM2":0,"buildingType":"","notes":""},"mergeLog":["Połączono: X + Y → Z"]}
+
+Dla confidence zachowaj wartości z pozycji wejściowych. Jeśli łączysz pozycje z różnym confidence, użyj niższego.`;
 
         try {
           const mergeResult = await gpt4o(apiKey, 
             mergeSystem,
-            `Pozycje do połączenia i walidacji (${allPartialItems.length} pozycji z ${fileCount} plików):\n\n${JSON.stringify(allPartialItems, null, 0).substring(0, 30000)}`,
+            `Pozycje do połączenia i walidacji (${allPartialItems.length} pozycji z ${fileCount} plików):
+
+${JSON.stringify(allPartialItems, null, 0).substring(0, 30000)}`,
             { jsonMode: true, temperature: 0.1, maxTokens: 8000 }
           );
 
@@ -504,6 +534,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
               unitPrice: Number(item.unitPrice) || 0,
               branch: item.branch || "ogolnobudowlana",
               sourceFile: item.sourceFile || "",
+              confidence: item.confidence || "medium",
             }));
 
             if (merged.mergeLog) {
@@ -539,6 +570,8 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
             allPartialItems = allPartialItems.map(item => ({
               ...item,
               unitPrice: Math.round(Number(item.unitPrice) * scaleFactor),
+              // Downgrade confidence when auto-scaling prices
+              confidence: item.confidence === "high" ? "medium" : "low",
             }));
           }
         }
@@ -550,6 +583,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
         allPartialItems = generateRealisticFallback(buildingAnalysis).map(item => ({
           ...item,
           branch: "ogolnobudowlana",
+          confidence: "low" as const,
         }));
       }
 
@@ -577,6 +611,7 @@ Odpowiedz WYŁĄCZNIE poprawnym JSON:
           unitPrice: price,
           totalPrice: total,
           sourceFile: String(item.sourceFile || allTexts[0]?.fileName || ""),
+          confidence: item.confidence || "medium",
         });
       }
 
@@ -740,6 +775,9 @@ export const internalAddLineItem = internalMutation({
     unitPrice: v.number(),
     totalPrice: v.number(),
     sourceFile: v.optional(v.string()),
+    confidence: v.optional(
+      v.union(v.literal("high"), v.literal("medium"), v.literal("low"))
+    ),
   },
   handler: async (ctx, args) => {
     await ctx.db.insert("lineItems", args);
