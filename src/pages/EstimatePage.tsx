@@ -65,6 +65,7 @@ type LineItem = {
   totalPrice: number;
   sourceFile?: string;
   note?: string;
+  confidence?: "high" | "medium" | "low";
 };
 
 type ChangeLogEntry = {
@@ -105,6 +106,7 @@ async function exportXLSX(
       `${T("table.unitPrice")} (PLN)`,
       `${T("table.value")} (PLN)`,
       T("edit.note"),
+      T("confidence.label"),
     ],
   ];
 
@@ -118,6 +120,7 @@ async function exportXLSX(
       item.unitPrice,
       item.totalPrice,
       item.note ?? "",
+      item.confidence === "high" ? T("confidence.high") : item.confidence === "low" ? T("confidence.low") : T("confidence.medium"),
     ]);
   });
 
@@ -741,6 +744,50 @@ function PriceTemplatePanel({
 }
 
 // =====================================================
+// CONFIDENCE BADGE
+// =====================================================
+
+const confidenceConfig = {
+  high: {
+    color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+    dot: "bg-emerald-500",
+  },
+  medium: {
+    color: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+    dot: "bg-amber-500",
+  },
+  low: {
+    color: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+    dot: "bg-red-500",
+  },
+} as const;
+
+function ConfidenceBadge({ level, locale }: { level: "high" | "medium" | "low"; locale: string }) {
+  const cfg = confidenceConfig[level];
+  const labels: Record<string, Record<string, string>> = {
+    high: { pl: "Pewna", en: "High" },
+    medium: { pl: "Szacunkowa", en: "Estimated" },
+    low: { pl: "Niska", en: "Low" },
+  };
+  const tooltips: Record<string, Record<string, string>> = {
+    high: { pl: "Dane z dokumentacji", en: "From documentation" },
+    medium: { pl: "Oszacowano z parametrów budynku", en: "Estimated from building parameters" },
+    low: { pl: "Wymaga weryfikacji", en: "Needs verification" },
+  };
+  const lang = locale === "pl" ? "pl" : "en";
+
+  return (
+    <span
+      title={tooltips[level][lang]}
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium ${cfg.color} cursor-help`}
+    >
+      <span className={`size-1.5 rounded-full ${cfg.dot}`} />
+      {labels[level][lang]}
+    </span>
+  );
+}
+
+// =====================================================
 // EDITABLE ROW
 // =====================================================
 
@@ -756,7 +803,12 @@ function EditableRow({ item }: { item: LineItem }) {
     <>
       <TableRow className="group">
         <TableCell className="text-muted-foreground text-xs w-8">
-          {item.position}
+          <div className="flex items-center gap-1.5">
+            <span>{item.position}</span>
+            {item.confidence && (
+              <ConfidenceBadge level={item.confidence} locale={currencyLocale.startsWith("pl") ? "pl" : "en"} />
+            )}
+          </div>
         </TableCell>
         <TableCell>
           <InlineEdit

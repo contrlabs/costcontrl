@@ -99,6 +99,9 @@ export const addItem = mutation({
     quantity: v.number(),
     unitPrice: v.number(),
     note: v.optional(v.string()),
+    confidence: v.optional(
+      v.union(v.literal("high"), v.literal("medium"), v.literal("low"))
+    ),
   },
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx);
@@ -123,6 +126,7 @@ export const addItem = mutation({
       unitPrice: args.unitPrice,
       totalPrice,
       note: args.note,
+      confidence: args.confidence ?? "medium",
     });
 
     // Record to changelog
